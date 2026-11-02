@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HQ · Grok Bot Floor</title><meta name="robots" content="noindex">
+<style>
+:root{--bg:#0d0f14;--card:#171a22;--line:#262a35;--tx:#e9ecf2;--mut:#8a91a3}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#1b2140,transparent),var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:#0d0f14cc;backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{font-size:18px;margin:0;letter-spacing:.5px}.dot{width:9px;height:9px;border-radius:50%;background:#959595;display:inline-block}.live .dot{background:#14C16F;box-shadow:0 0 8px #14C16F}
+#usage{flex:1;min-width:200px}.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#1E86FC,#8F59F9)}
+small,.mut{color:var(--mut);font-size:12px}main{padding:16px;max-width:1200px;margin:auto}
+.floor{margin:0 0 22px}.floor h2{font-size:13px;text-transform:uppercase;letter-spacing:2px;color:var(--mut);margin:0 0 10px;border-bottom:1px dashed var(--line);padding-bottom:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;gap:12px;transition:.2s}
+.card.alert{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 18px -6px var(--c)}
+.card svg{flex:none;width:52px;height:52px}.b{flex:1;min-width:0}.n{font-weight:650;display:flex;justify-content:space-between;gap:6px}
+.n a{color:#9cc3ff;font-weight:500;font-size:12px;text-decoration:none}
+.pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:9px;background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c);margin:4px 0;font-weight:600}
+.step{font-size:13px;overflow-wrap:anywhere}.rt{margin-top:6px;font-size:12px;color:var(--mut)}.rt div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#attn .grid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}#empty{color:var(--mut);text-align:center;padding:40px}
+.working .av{animation:bob 1.6s ease-in-out infinite}@keyframes bob{50%{transform:translateY(-3px)}}
+</style></head><body>
+<header id="hd"><span class="dot"></span><h1>HQ</h1><small id="st">connecting…</small><div id="usage"></div></header>
+<main><div id="empty">Add <code>#your-topic</code> to the URL.</div><section id="attn" class="floor" hidden><h2>⚠ Needs you</h2><div class="grid"></div></section><div id="floors"></div></main>
+<script>
+const T=decodeURIComponent(location.hash.slice(1));const S={roster:[],groups:{},chat:{},looks:{},routines:{},status:{},usage:null,check:null};
+const COL={working:'#1E86FC',done:'#14C16F',idle:'#959595',waiting_user:'#F59312',error:'#E5484D'};
+const key=n=>(n||'').split('·')[0].trim();
+const find=(o,n)=>{if(!o)return;const k=key(n);if(o[n]!==undefined)return o[n];if(o[k]!==undefined)return o[k];for(const x in o)if(key(x).toLowerCase()===k.toLowerCase()||k.toLowerCase().startsWith(key(x).toLowerCase()+' '))return o[x]};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function ago(t){if(!t)return'';const s=Math.max(0,Date.now()/1e3-t);const r=s<60?Math.floor(s)+'s':s<3600?Math.floor(s/60)+'m':s<86400?Math.floor(s/3600)+'h':Math.floor(s/86400)+'d';return r+' ago · '+new Date(t*1e3).toLocaleTimeString('en-US',{timeZone:'America/Los_Angeles',hour:'numeric',minute:'2-digit'})+' PT'}
+function pts(n,r1,r2,rot=-90){let p=[];for(let i=0;i<n*(r2?2:1);i++){const r=r2&&i%2?r2:r1,a=(rot+i*360/(n*(r2?2:1)))*Math.PI/180;p.push((50+r*Math.cos(a)).toFixed(1)+','+(50+r*Math.sin(a)).toFixed(1))}return`<polygon points="${p.join(' ')}"/>`}
+function shape(s){switch(s){case'cloud':return'<path d="M28 72a16 16 0 0 1 2-32 20 20 0 0 1 38-4 16 16 0 0 1 6 36z"/>';case'rounded_square':return'<rect x="16" y="16" width="68" height="68" rx="18"/>';case'star4':return pts(4,40,15);case'star6':return pts(6,40,22);case'clover':return'<circle cx="50" cy="30" r="19"/><circle cx="30" cy="54" r="19"/><circle cx="70" cy="54" r="19"/><circle cx="50" cy="66" r="17"/>';case'bubble':return'<path d="M50 14c22 0 36 14 36 32s-14 32-36 32c-5 0-9-1-13-2L18 86l6-16c-6-6-10-14-10-24 0-18 14-32 36-32z"/>';case'flower':return[0,72,144,216,288].map(a=>`<circle cx="${50+20*Math.cos((a-90)*Math.PI/180)}" cy="${50+20*Math.sin((a-90)*Math.PI/180)}" r="17"/>`).join('')+'<circle cx="50" cy="50" r="16"/>';case'drop':return'<path d="M50 10C38 32 22 46 22 62a28 28 0 0 0 56 0c0-16-16-30-28-52z"/>';case'pill':return'<rect x="12" y="30" width="76" height="40" rx="20"/>';case'triangle':return pts(3,42,0,-90);case'pentagon':return pts(5,40);case'hexagon':return pts(6,40,0,0);case'cone':return'<path d="M50 12L80 80Q50 92 20 80z"/>';case'trio':return'<circle cx="50" cy="32" r="18"/><circle cx="31" cy="64" r="18"/><circle cx="69" cy="64" r="18"/>';default:return'<circle cx="50" cy="50" r="38"/>'}}
+function acc(a){switch(a){case'glasses':return'<g fill="none" stroke="#111" stroke-width="3.5"><circle cx="40" cy="50" r="8"/><circle cx="60" cy="50" r="8"/><path d="M48 50h4"/></g>';case'antenna':return'<path d="M50 14V2" stroke="#ddd" stroke-width="3"/><circle cx="50" cy="3" r="4" fill="#F93498"/>';case'stem':return'<path d="M50 16q4-12 14-12" stroke="#14C16F" stroke-width="4" fill="none"/>';case'bow':return'<path d="M50 16l-13-8v16zM50 16l13-8v16z" fill="#F93498"/>';default:return''}}
+function avatar(n){const l=find(S.looks,n)||{};const c=l.color||'#959595';const eyes=l.accessory==='glasses'?'':'<circle cx="41" cy="50" r="4" fill="#111"/><circle cx="59" cy="50" r="4" fill="#111"/>';return`<svg class="av" viewBox="0 0 100 100"><g fill="${c}" stroke="${c==='#000000'?'#444':'none'}" stroke-width="2">${shape(l.shape)}</g><circle cx="41" cy="50" r="5" fill="#fff"/><circle cx="59" cy="50" r="5" fill="#fff"/>${eyes}${acc(l.accessory)}</svg>`}
+function card(n){const st=find(S.status,n)||{};const s=st.status||'idle',c=COL[s]||'#959595';const ch=find(S.chat,n);const r=find(S.routines,n)||[];const u=S.usage&&find(S.usage.bots,n);
+return`<div class="card ${s} ${s==='waiting_user'||s==='error'?'alert':''}" style="--c:${c}">${avatar(n)}<div class="b"><div class="n"><span>${esc(n)}</span>${ch?`<a href="${esc(ch)}">chat ↗</a>`:''}</div><span class="pill">${esc(s.replace('_',' '))}</span>${u!=null?` <small>${esc(u)}% usage</small>`:''}<div class="step">${esc(st.step||'')}</div><small>${ago(st.t)}</small>${r.length?`<div class="rt">${r.map(i=>`<div>⏱ ${esc(i.name)} · ${esc(i.schedule||'')}${i.next_run?' → '+esc(i.next_run):''}</div>`).join('')}</div>`:''}</div></div>`}
+function render(){if(!T)return;document.getElementById('empty').hidden=true;
+const names=[...new Set([...S.roster,...Object.keys(S.status).filter(k=>!S.roster.some(r=>key(r)===key(k)))])];
+const team=n=>find(S.groups,n)||'Unassigned';const fl={};names.forEach(n=>(fl[team(n)]??=[]).push(n));
+const al=names.filter(n=>['waiting_user','error'].includes((find(S.status,n)||{}).status));const A=document.getElementById('attn');A.hidden=!al.length;A.querySelector('.grid').innerHTML=al.map(card).join('');
+document.getElementById('floors').innerHTML=Object.entries(fl).map(([t,ns])=>`<section class="floor"><h2>${esc(t)} · ${ns.length}</h2><div class="grid">${ns.map(card).join('')}</div></section>`).join('');
+const u=S.usage;document.getElementById('usage').innerHTML=u?`<div class="bar"><i style="width:${Math.min(100,+u.total_used_pct||0)}%"></i></div><small>${esc(u.total_used_pct)}% used${u.resets_at?' · resets '+esc(u.resets_at):''}</small>`:''}
+function ingest(m){if(m.event!=='message')return;let d;try{d=JSON.parse(m.message)}catch{return}const t=m.time;
+if(d.roster)S.roster=d.roster;if(d.groups)Object.assign(S.groups,d.groups);if(d.chat)Object.assign(S.chat,d.chat);if(d.looks)Object.assign(S.looks,d.looks);
+if(d.routines&&d.routines.bot)S.routines[d.routines.bot]=d.routines.items||[];if(d.type==='usage')S.usage=d;if(d.check)S.check={...d.check,t};
+if(d.bot&&d.status){const o=find(S.status,d.bot);if(!o||o.t<=t)S.status[key(d.bot)]={...d,t}}}
+async function boot(){if(!T){return}const st=document.getElementById('st');const base='https://ntfy.sh/'+encodeURIComponent(T);
+try{const r=await fetch(base+'/json?poll=1&since=12h');(await r.text()).split('\n').filter(Boolean).forEach(l=>{try{ingest(JSON.parse(l))}catch{}});render()}catch(e){st.textContent='poll failed'}
+const es=new EventSource(base+'/sse');es.onopen=()=>{document.getElementById('hd').classList.add('live');st.textContent='live'};es.onerror=()=>{document.getElementById('hd').classList.remove('live');st.textContent='reconnecting…'};es.onmessage=e=>{ingest(JSON.parse(e.data));render()}}
+setInterval(render,30000);addEventListener('hashchange',()=>location.reload());boot();
+</script></body></html>
