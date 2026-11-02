@@ -25,6 +25,10 @@ details{border-top:1px solid var(--ln);padding:8px 0}summary{cursor:pointer;font
 #ban{top:76px;left:50%;transform:translate(-50%,-160%);transition:.4s;background:#FFE066;color:#111;padding:10px 14px;display:flex;gap:12px;align-items:center;max-width:92vw;z-index:4}#ban.show{transform:translate(-50%,0)}
 .bub{position:fixed;z-index:2;background:#fff;color:#111;border-radius:12px;padding:5px 9px;font-size:11px;box-shadow:0 3px 10px rgba(0,0,0,.12);max-width:170px;transform:translate(-50%,-100%);pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bub:after{content:'';position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-bottom:0;border-top-color:#fff}
+.mb{display:flex;gap:6px;margin-top:8px}.mb textarea{flex:1;font:inherit;border:1px solid var(--ln);background:var(--bg);color:var(--tx);border-radius:10px;padding:6px 8px;resize:none;height:34px;min-width:0}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.ok{background:#14C16F;color:#fff}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:9;padding:10px 16px;border-radius:12px;color:#fff;font-weight:600;display:none;box-shadow:var(--sh)}
+#set{top:76px;left:50%;transform:translateX(-50%);width:min(420px,94vw);padding:16px;z-index:8}#set label{display:block;font-weight:600;margin:10px 0 4px}#set input,#set select{width:100%;font:inherit;padding:8px;border:1px solid var(--ln);border-radius:10px;background:var(--bg);color:var(--tx)}
 #tabs{display:none}#hint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:5}
 @media(max-width:760px){#top{height:auto;padding:8px 12px;flex-wrap:wrap;gap:6px}#top h1{font-size:14px}.cnt{margin-left:0;gap:8px;font-size:12px}
 #left,#right,#log{display:none;left:8px;right:8px;width:auto;top:auto;bottom:64px;max-height:55vh;height:auto}#gauge{display:none}
@@ -32,9 +36,14 @@ body.t-left #left,body.t-right #right,body.t-log #log{display:block}body.t-log #
 #tabs{display:flex;left:8px;right:8px;bottom:8px;height:48px;padding:5px;gap:4px}#tabs button{flex:1;background:none}#tabs button.on{background:var(--ln)}#ban{top:auto;bottom:64px;transform:translate(-50%,200%)}#ban.show{transform:translate(-50%,0)}}
 </style></head><body>
 <canvas id="c"></canvas>
-<div id="top" class="pn"><h1>Steve's Bot Office</h1><span id="clock"></span><span id="live" class="d" style="background:#959595" title="feed"></span><button id="dn">☾ Night</button>
+<div id="top" class="pn"><h1>Steve's Bot Office</h1><span id="clock"></span><span id="live" class="d" style="background:#959595" title="feed"></span><button id="dn">☾ Night</button><button id="gear" title="Settings">⚙</button>
 <div class="cnt"><span><i class="d" style="background:#1E86FC"></i><b id="cw">0</b> working</span><span><i class="d" style="background:#F59312"></i><b id="cq">0</b> waiting</span><span><i class="d" style="background:#E5484D"></i><b id="ce">0</b> errors</span><span><i class="d" style="background:#c8c8c8"></i><b id="cr">0</b> resting</span></div></div>
-<div id="ban" class="pn"></div>
+<div id="ban" class="pn"></div><div id="toast"></div>
+<div id="set" class="pn" hidden><b>Send settings</b> <small style="color:var(--mut)">(stored in this browser only)</small>
+<label>Transport</label><select id="s_mode"><option value="ntfy">ntfy relay (TOPIC-in → box forwarder)</option><option value="direct">Direct webhook (blocked by CORS today)</option></select>
+<label>Webhook URL</label><input id="s_url" placeholder="https://api2.cursor.sh/automations/webhook/…" autocomplete="off">
+<label>Sender key</label><input id="s_key" type="password" placeholder="key (without 'Bearer ')" autocomplete="off">
+<div class="acts"><button class="blk" id="s_save">Save</button><button id="s_close">Close</button><button id="s_clear">Clear</button></div></div>
 <div id="left" class="pn"><h3>Floors</h3><div id="floors"></div><h3>Waiting on me</h3><div id="queue"></div><details><summary>Finished</summary><div id="fin"></div></details><details><summary>Routines</summary><div id="rts"></div></details></div>
 <div id="right" class="pn"><h3 id="rt">Floor</h3><div id="bots"></div><div id="det" hidden></div></div>
 <div id="log" class="pn"><h3>Activity</h3><div id="logl"></div></div>
@@ -54,6 +63,13 @@ const ago=t=>{if(!t)return'';const s=Math.max(0,Date.now()/1e3-t);return(s<60?Ma
 const st=n=>(find(S.status,n)||{});const stat=n=>st(n).status||'idle';
 const names=()=>{const r=S.roster.map(key);Object.keys(S.status).forEach(k=>{if(!r.some(x=>x.toLowerCase()===k.toLowerCase()))r.push(k)});return r};
 const full=n=>S.roster.find(r=>key(r)===n)||n;const team=n=>{const g=find(S.groups,n);return TEAMS.includes(g)?g:(g||'Ops')};
+const cfg=()=>{try{return JSON.parse(localStorage.getItem('hqcfg')||'{}')}catch{return{}}};
+function toast(m,ok){const e=document.getElementById('toast');e.textContent=m;e.style.background=ok?'#14C16F':'#E5484D';e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3000)}
+async function sendTo(to,action,text,ref){const body=JSON.stringify({to:full(to),action,text,ref:ref||'',at:new Date().toISOString()});const c=cfg();
+ try{let r;if(c.mode==='direct'&&c.url){r=await fetch(c.url,{method:'POST',headers:{'Authorization':'Bearer '+(c.key||''),'Content-Type':'application/json'},body})}
+ else{r=await fetch('https://ntfy.sh/'+encodeURIComponent(T+'-in'),{method:'POST',body})}
+ if(!r.ok)throw new Error('HTTP '+r.status);toast((action==='approve'?'Approved → ':'Sent → ')+key(to),true);return true}catch(e){toast('Failed: '+(e.message||e)+(c.mode==='direct'?' (CORS?)':''),false);return false}}
+const msgBox=(n,ap)=>`<div class="mb"><textarea data-to="${esc(n)}" placeholder="Message ${esc(key(n))}…"></textarea><button class="blk" data-send="${esc(n)}">Send</button></div>${ap?`<div class="acts"><button class="ok" data-ap="${esc(n)}">Approve</button>${chatBtn(n,'')}</div>`:''}`;
 const chatBtn=(n,c='blk')=>{const l=find(S.chat,n);return l?`<a class="btn ${c}" href="${esc(l)}">Open chat</a>`:''};
 
 /* ---------- 3D ---------- */
@@ -129,16 +145,16 @@ function openTab(t){if(innerWidth>760)return;const on=document.body.classList.co
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{const on=document.body.classList.contains('t-'+b.dataset.t);document.body.className=document.body.className.replace(/t-\w+/g,'').trim();if(!on)document.body.classList.add('t-'+b.dataset.t);document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',document.body.classList.contains('t-'+x.dataset.t)))});
 function ring(a,t){const p=t?a/t:0;return`<svg width="28" height="28" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--ln)" stroke-width="5"/><circle cx="18" cy="18" r="14" fill="none" stroke="#14C16F" stroke-width="5" stroke-dasharray="${88*p} 88" transform="rotate(-90 18 18)" stroke-linecap="round"/></svg>`}
 let banShown='';
-function renderUI(){const ns=names();const c={working:0,waiting_user:0,error:0,rest:0};ns.forEach(n=>{const s=stat(n);c[s]!==undefined&&s!=='rest'?c[s]++:c.rest++});$('cw').textContent=c.working;$('cq').textContent=c.waiting_user;$('ce').textContent=c.error;$('cr').textContent=c.rest;
+function renderUI(){const typing=document.activeElement&&document.activeElement.tagName==='TEXTAREA'&&document.activeElement.value;const ns=names();const c={working:0,waiting_user:0,error:0,rest:0};ns.forEach(n=>{const s=stat(n);c[s]!==undefined&&s!=='rest'?c[s]++:c.rest++});$('cw').textContent=c.working;$('cq').textContent=c.waiting_user;$('ce').textContent=c.error;$('cr').textContent=c.rest;
  $('floors').innerHTML=TEAMS.map(t=>{const m=ns.filter(n=>team(n)===t),a=m.filter(n=>stat(n)==='working').length;return`<div class="fl ${t===cur?'on':''}" data-f="${t}">${ring(a,m.length)}<b>${t}</b><span style="color:var(--mut)">${a}/${m.length}</span></div>`}).join('');
  document.querySelectorAll('.fl').forEach(e=>e.onclick=()=>{goFloor(e.dataset.f);openTab('right')});
- const W=ns.filter(n=>['waiting_user','error'].includes(stat(n)));$('queue').innerHTML=W.length?W.map(n=>`<div class="q"><b><i class="d" style="background:${COL[stat(n)]}"></i> ${esc(full(n))}</b><div class="s">${esc(st(n).step||'')}</div>${chatBtn(n)}</div>`).join(''):'<div style="color:var(--mut)">Nothing waiting 🎉</div>';
+ const W=ns.filter(n=>['waiting_user','error'].includes(stat(n)));if(!typing)$('queue').innerHTML=W.length?W.map(n=>`<div class="q"><b><i class="d" style="background:${COL[stat(n)]}"></i> ${esc(full(n))}</b><div class="s">${esc(st(n).step||'')}</div>${stat(n)==='waiting_user'?msgBox(n,true):msgBox(n,false)+'<div class="acts">'+chatBtn(n)+'</div>'}</div>`).join(''):'<div style="color:var(--mut)">Nothing waiting 🎉</div>';
  $('fin').innerHTML=ns.filter(n=>stat(n)==='done').map(n=>`<div>✓ <b>${esc(n)}</b> ${esc(st(n).step||'')} · ${ago(st(n).t)}</div>`).join('')||'<div>None yet</div>';
  $('rts').innerHTML=Object.entries(S.routines).flatMap(([b,it])=>it.map(i=>`<div>⏱ <b>${esc(b)}</b> ${esc(i.name)} · ${esc(i.schedule||'')}${i.next_run?' → '+esc(i.next_run):''}</div>`)).join('')||'<div>No routines posted</div>';
  $('rt').textContent=cur+' floor';const fb=ns.filter(n=>team(n)===cur);
  $('bots').innerHTML=fb.map(n=>`<div class="bt ${n===sel?'on':''}" data-b="${esc(n)}"><i class="d" style="background:${COL[stat(n)]||'#c8c8c8'}"></i><div><b>${esc(full(n))}</b><small>${esc(st(n).step||stat(n).replace('_',' '))}</small></div></div>`).join('')||'<div style="color:var(--mut)">Empty floor</div>';
  document.querySelectorAll('.bt').forEach(e=>e.onclick=()=>{sel=e.dataset.b;renderUI()});
- const d=$('det');if(sel&&ns.includes(sel)){const s=st(sel),u=S.usage&&find(S.usage.bots,sel),r=find(S.routines,sel)||[];d.hidden=false;d.innerHTML=`<h4>${esc(full(sel))}</h4><div><i class="d" style="background:${COL[stat(sel)]}"></i> ${esc(stat(sel).replace('_',' '))} · ${esc(team(sel))}</div><p style="margin:8px 0">${esc(s.step||'No step posted')}</p><div style="color:var(--mut);font-size:12px">${ago(s.t)}${u!=null?' · '+esc(u)+'% of usage':''}</div>${r.map(i=>`<div style="font-size:12px;color:var(--mut)">⏱ ${esc(i.name)} ${esc(i.next_run||'')}</div>`).join('')}<div style="margin-top:10px">${chatBtn(sel)||'<span style="color:var(--mut)">No chat link</span>'}</div>`}else d.hidden=true;
+ const d=$('det');if(typing){}else if(sel&&ns.includes(sel)){const s=st(sel),u=S.usage&&find(S.usage.bots,sel),r=find(S.routines,sel)||[];d.hidden=false;d.innerHTML=`<h4>${esc(full(sel))}</h4><div><i class="d" style="background:${COL[stat(sel)]}"></i> ${esc(stat(sel).replace('_',' '))} · ${esc(team(sel))}</div><p style="margin:8px 0">${esc(s.step||'No step posted')}</p><div style="color:var(--mut);font-size:12px">${ago(s.t)}${u!=null?' · '+esc(u)+'% of usage':''}</div>${r.map(i=>`<div style="font-size:12px;color:var(--mut)">⏱ ${esc(i.name)} ${esc(i.next_run||'')}</div>`).join('')}${msgBox(sel,stat(sel)==='waiting_user')}<div style="margin-top:8px">${chatBtn(sel)||'<span style="color:var(--mut)">No chat link</span>'}</div>`}else d.hidden=true;
  const wq=ns.filter(n=>stat(n)==='waiting_user');const ban=$('ban');if(wq.length){const n=wq[0];ban.innerHTML=`<span>⏳ <b>${esc(full(n))}</b> is waiting on you${wq.length>1?` (+${wq.length-1})`:''}: ${esc(st(n).step||'')}</span>${chatBtn(n)}`;ban.classList.add('show')}else ban.classList.remove('show');
  const u=S.usage;if(u){const p=Math.min(100,+u.total_used_pct||0);$('ga').setAttribute('stroke-dasharray',`${2.64*p} 264`);$('ga').setAttribute('stroke',p>85?'#E5484D':p>60?'#F59312':'#1E86FC');$('gt').textContent=Math.round(p)+'%';$('gr').textContent=u.resets_at?'Resets '+u.resets_at:''}
  $('logl').innerHTML=S.log.slice(-60).reverse().map(l=>`<div>${pt(l.t)} ${esc(l.m)}</div>`).join('')}
@@ -146,7 +162,14 @@ function ingest(m){if(m.event!=='message')return false;let d;try{d=JSON.parse(m.
  const sum=d.bot?`${d.bot}: ${d.status||''} ${d.step||''}`:d.roster?`roster (${d.roster.length})`:d.type==='usage'?`usage ${d.total_used_pct}%`:Object.keys(d).join(',')+' updated';S.log.push({t,m:sum});
  if(d.roster)S.roster=d.roster;if(d.groups)Object.assign(S.groups,d.groups);if(d.chat)Object.assign(S.chat,d.chat);if(d.looks)Object.assign(S.looks,d.looks);
  if(d.routines&&d.routines.bot)S.routines[key(d.routines.bot)]=d.routines.items||[];if(d.type==='usage')S.usage=d;
- if(d.bot&&d.status){const k=names().find(x=>x.toLowerCase()===key(d.bot).toLowerCase())||key(d.bot);const o=S.status[k];if(!o||o.t<=t)S.status[k]={...d,t}}return true}
+ if(d.bot&&d.status){d.id=m.id;const k=names().find(x=>x.toLowerCase()===key(d.bot).toLowerCase())||key(d.bot);const o=S.status[k];if(!o||o.t<=t)S.status[k]={...d,t}}return true}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-send],[data-ap]');if(!b)return;const n=b.dataset.send||b.dataset.ap;const ref=st(n).id||'';
+ if(b.dataset.ap){b.disabled=true;await sendTo(n,'approve','Approved',ref);b.disabled=false;return}
+ const ta=b.parentElement.querySelector('textarea');const v=ta.value.trim();if(!v)return toast('Type a message first',false);b.disabled=true;if(await sendTo(n,'message',v,ref))ta.value='';b.disabled=false});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&e.target.tagName==='TEXTAREA'){e.preventDefault();e.target.parentElement.querySelector('button').click()}});
+const SET=$('set');$('gear').onclick=()=>{const c=cfg();$('s_mode').value=c.mode||'ntfy';$('s_url').value=c.url||'';$('s_key').value=c.key||'';SET.hidden=false};
+$('s_close').onclick=()=>SET.hidden=true;$('s_clear').onclick=()=>{localStorage.removeItem('hqcfg');SET.hidden=true;toast('Settings cleared',true)};
+$('s_save').onclick=()=>{localStorage.setItem('hqcfg',JSON.stringify({mode:$('s_mode').value,url:$('s_url').value.trim(),key:$('s_key').value.trim().replace(/^Bearer\s+/i,'')}));SET.hidden=true;toast('Saved in this browser',true)};
 function refresh(){layoutBots();renderUI()}
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('en-US',{timeZone:'America/Los_Angeles',hour:'numeric',minute:'2-digit',second:'2-digit'})+' PT'},1000);
 setInterval(renderUI,30000);addEventListener('hashchange',()=>location.reload());
